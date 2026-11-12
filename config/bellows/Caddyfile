@@ -1,0 +1,62 @@
+# bellows - reverse proxy for the homelab (Caddy). All sites use Caddy's local CA.
+{
+	local_certs
+	skip_install_trust
+	admin localhost:2019
+}
+
+(common) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+jellyfin.home.arpa {
+	import common
+	reverse_proxy 192.168.1.20:8096
+}
+
+anvil.home.arpa, pve.home.arpa {
+	import common
+	reverse_proxy https://192.168.1.10:8006 {
+		transport http {
+			# verify Proxmox's own certificate against its cluster CA instead of skipping checks
+			tls_trust_pool file /etc/caddy/trust/pve-root-ca.pem
+			tls_server_name pve.home.arpa
+		}
+	}
+}
+
+flux.home.arpa {
+	import common
+	reverse_proxy 192.168.1.53:80
+}
+
+tongs.home.arpa {
+	import common
+	reverse_proxy 192.168.1.40:8080
+}
+
+bellows.home.arpa {
+	import common
+	respond "bellows reverse proxy" 200
+}
+
+# Plain-HTTP download of the PUBLIC root certificate, so devices can install it before they trust HTTPS.
+# Always compare its SHA-256 fingerprint before trusting it.
+http://bellows.home.arpa, http://192.168.1.80 {
+	handle /ca.crt {
+		root * /var/lib/caddy/.local/share/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		header Content-Disposition "attachment; filename=bellows-root-ca.crt"
+		file_server
+	}
+	handle {
+		redir https://{host}{uri} permanent
+	}
+}

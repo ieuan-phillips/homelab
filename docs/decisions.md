@@ -52,3 +52,9 @@ Short records of choices and the reasoning behind them. Newest last.
 **Date:** 2026-11-12  
 **Decision:** Monitor the lab with Gatus in a small LXC (`tongs`), built from the tagged source, configured from a YAML file kept in this repo, with alerts to the same ntfy channel as Proxmox.  
 **Why:** Uptime Kuma's current release needs a newer Node.js than Debian ships and stores its settings in a database. Gatus is one Go binary, uses about 30 MB of RAM, and its whole configuration is a text file that can be reviewed and versioned ("monitoring as code"). Secrets (the ntfy topic) stay out of the repo in an environment file.
+
+## 011 - Caddy reverse proxy with a local certificate authority
+**Date:** 2026-11-12  
+**Decision:** Put the web UIs behind Caddy in a small LXC (`bellows`) with HTTPS from Caddy's internal CA, under `*.home.arpa` names served by AdGuard Home. Devices trust the CA's root certificate once. Direct IP:port access stays available for clients that can't use the names yet (Chromecast, Samba).  
+**Why:** One front door with clean names and TLS everywhere, without exposing anything to the internet. Public CAs can't issue certificates for `home.arpa`, and buying a domain only for this isn't justified yet. Caddy verifies Proxmox's own certificate against the Proxmox cluster CA rather than skipping verification.  
+**Risk accepted:** whoever holds the CA's private key could impersonate any site to devices that trust it. Mitigations: the key never leaves `bellows`, which runs nothing else and allows key-only SSH; it is included in guest backups. A future improvement is a CA with name constraints limited to `home.arpa`.

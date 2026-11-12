@@ -93,3 +93,34 @@ endpoints:
       - "[CONNECTED] == true"
     alerts:
       - type: ntfy
+
+  - name: bellows -> Jellyfin
+    group: bellows
+    url: "https://jellyfin.home.arpa/health"
+    interval: 2m
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == Healthy"
+      - "[CERTIFICATE_EXPIRATION] > 1h"
+    alerts:
+      - type: ntfy
+
+  - name: bellows -> Proxmox
+    group: bellows
+    url: "https://anvil.home.arpa"
+    interval: 2m
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 1h"
+    alerts:
+      - type: ntfy
+
+  - name: bellows -> flux
+    group: bellows
+    url: "https://flux.home.arpa"
+    interval: 5m
+    conditions:
+      - "[STATUS] < 400"
+      - "[CERTIFICATE_EXPIRATION] > 1h"
+    alerts:
+      - type: ntfy

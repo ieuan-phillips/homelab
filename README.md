@@ -25,6 +25,7 @@ Everything here is documented as I build it: what I did, why, what went wrong, a
    +-- CT 100 jellyfin  Jellyfin, Intel Quick Sync (iGPU passthrough), Samba share for media
    +-- CT 101 flux      AdGuard Home: DNS filtering, encrypted upstream (Quad9), local home.arpa names
    +-- CT 102 tongs     Gatus: service monitoring, alerts to phone (ntfy)
+   +-- CT 103 bellows   Caddy reverse proxy: https://<service>.home.arpa with a local CA
 ```
 
 Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`), and each service is a tool of the forge.
@@ -35,6 +36,7 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
 | `jellyfin` (CT 100) | Media server | Unprivileged LXC, Debian 13 | Direct play and hardware transcoding (~12x real time) verified |
 | `flux` (CT 101) | DNS filter | Unprivileged LXC, Debian 13 | ~400k blocking rules; opt-in per device |
 | `tongs` (CT 102) | Monitoring | Unprivileged LXC, Debian 13 | 7 checks, config in [`config/tongs/`](config/tongs/) |
+| `bellows` (CT 103) | Reverse proxy | Unprivileged LXC, Debian 13 | HTTPS for all web UIs, config in [`config/bellows/`](config/bellows/) |
 | `forge` | Linux admin practice box | Debian 13 (no desktop) | Disk failing; offline / lab use only |
 
 ## Roadmap
@@ -42,7 +44,7 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
 - [x] **Phase 0 hardening:** TOTP two-factor on the hypervisor web UI, key-only SSH, disk-failure alerting to a phone, scheduled SMART self-tests, weekly guest backups *(still to do: SHA256 verification of install media)*
 - [x] **Phase 1 - Media:** Jellyfin in an LXC container with Intel Quick Sync hardware transcoding, local playback
 - [ ] **Phase 2 - Storage and backups:** separate media and backup storage, scheduled Proxmox backups, 3-2-1 plan
-- [ ] **Phase 3 - Services:** ~~DNS sinkhole~~ (AdGuard Home done), Immich photo backup, reverse proxy with local TLS
+- [ ] **Phase 3 - Services:** ~~DNS sinkhole~~ (AdGuard Home done), ~~reverse proxy with local TLS~~ (Caddy done), Immich photo backup
 - [ ] **Phase 4 - Network security:** OPNsense firewall on an isolated lab network, segmentation, IDS (Suricata), packet capture
 - [ ] **Phase 5 - Monitoring:** ~~uptime monitoring~~ (Gatus done), metrics, Wazuh SIEM
 - [ ] **Phase 6 - Clustering:** second Proxmox node with a QDevice tie-breaker
@@ -63,6 +65,7 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
   - [Jellyfin LXC with Intel Quick Sync](docs/runbooks/jellyfin-lxc.md)
   - [AdGuard Home DNS filter](docs/runbooks/adguard-home-lxc.md)
   - [Gatus monitoring](docs/runbooks/gatus-monitoring.md)
+  - [Caddy reverse proxy with local HTTPS](docs/runbooks/caddy-reverse-proxy.md)
 - Incidents
   - [2026-11-11 - forge disk failed SMART extended test](docs/incidents/2026-11-11-forge-disk-failure.md)
 
