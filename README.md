@@ -12,31 +12,39 @@ Everything here is documented as I build it: what I did, why, what went wrong, a
 ## Current architecture
 
 ```
-            Internet
-                |
-     ISP router (gateway, DHCP, DNS)
-        192.168.1.0/24
-       /        |          \
-   pve        forge        admin laptop
- Proxmox VE   Debian 13    (SSH, web UI)
- i7-6700      i7-2670QM
- 8 GB RAM     4 GB RAM
- 2 TB HDD     500 GB HDD (failing - lab use only)
+                 Internet
+                     |
+        ISP router (gateway, DHCP)
+             192.168.1.0/24
+     /              |               \
+ anvil (pve)      forge            clients
+ Proxmox VE 9     Debian 13        laptop, PC: DNS via flux
+ i7-6700, 8 GB    lab box          TV: Chromecast + Jellyfin
+ 2 TB HDD         (disk failing)
+   |
+   +-- CT 100 jellyfin  Jellyfin, Intel Quick Sync (iGPU passthrough), Samba share for media
+   +-- CT 101 flux      AdGuard Home: DNS filtering, encrypted upstream (Quad9), local home.arpa names
+   +-- CT 102 tongs     Gatus: service monitoring, alerts to phone (ntfy)
 ```
 
-| Host | Role | OS | Status |
+Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`), and each service is a tool of the forge.
+
+| Host / guest | Role | Platform | Status |
 |---|---|---|---|
-| `pve` | Hypervisor for all services | Proxmox VE 9 (Debian 13) | Updated, reboot-tested |
-| `forge` | Linux admin practice box | Debian 13 (no desktop) | SSH key auth, nginx; disk failing |
+| `anvil` (`pve`) | Hypervisor for all services | Proxmox VE 9 (Debian 13) | Updated, 2FA on web UI, key-only SSH, weekly guest backups, SMART tests and phone alerts |
+| `jellyfin` (CT 100) | Media server | Unprivileged LXC, Debian 13 | Direct play and hardware transcoding (~12x real time) verified |
+| `flux` (CT 101) | DNS filter | Unprivileged LXC, Debian 13 | ~400k blocking rules; opt-in per device |
+| `tongs` (CT 102) | Monitoring | Unprivileged LXC, Debian 13 | 7 checks, config in [`config/tongs/`](config/tongs/) |
+| `forge` | Linux admin practice box | Debian 13 (no desktop) | Disk failing; offline / lab use only |
 
 ## Roadmap
 - [x] **Phase 0 - Foundations:** Proxmox and Debian installed, static addressing, SSH key authentication, update repositories configured, disk health testing
-- [ ] **Phase 0 hardening:** TOTP two-factor on the hypervisor web UI, disk-failure alerting, SHA256 verification of install media
-- [ ] **Phase 1 - Media:** Jellyfin in an LXC container with Intel Quick Sync hardware transcoding, local playback
+- [x] **Phase 0 hardening:** TOTP two-factor on the hypervisor web UI, key-only SSH, disk-failure alerting to a phone, scheduled SMART self-tests, weekly guest backups *(still to do: SHA256 verification of install media)*
+- [x] **Phase 1 - Media:** Jellyfin in an LXC container with Intel Quick Sync hardware transcoding, local playback
 - [ ] **Phase 2 - Storage and backups:** separate media and backup storage, scheduled Proxmox backups, 3-2-1 plan
-- [ ] **Phase 3 - Services:** DNS sinkhole (Pi-hole/AdGuard Home), Immich photo backup, reverse proxy with local TLS
+- [ ] **Phase 3 - Services:** ~~DNS sinkhole~~ (AdGuard Home done), Immich photo backup, reverse proxy with local TLS
 - [ ] **Phase 4 - Network security:** OPNsense firewall on an isolated lab network, segmentation, IDS (Suricata), packet capture
-- [ ] **Phase 5 - Monitoring:** Wazuh SIEM, uptime and metrics
+- [ ] **Phase 5 - Monitoring:** ~~uptime monitoring~~ (Gatus done), metrics, Wazuh SIEM
 - [ ] **Phase 6 - Clustering:** second Proxmox node with a QDevice tie-breaker
 
 ### Future plans
@@ -51,6 +59,10 @@ Everything here is documented as I build it: what I did, why, what went wrong, a
 - [Decisions](docs/decisions.md) - what I chose and why
 - Runbooks
   - [Updating Proxmox without a subscription](docs/runbooks/proxmox-updates.md)
+  - [Proxmox host hardening basics](docs/runbooks/proxmox-hardening.md)
+  - [Jellyfin LXC with Intel Quick Sync](docs/runbooks/jellyfin-lxc.md)
+  - [AdGuard Home DNS filter](docs/runbooks/adguard-home-lxc.md)
+  - [Gatus monitoring](docs/runbooks/gatus-monitoring.md)
 - Incidents
   - [2026-11-11 - forge disk failed SMART extended test](docs/incidents/2026-11-11-forge-disk-failure.md)
 

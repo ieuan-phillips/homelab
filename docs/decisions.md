@@ -47,3 +47,8 @@ Short records of choices and the reasoning behind them. Newest last.
 **Date:** 2026-11-12  
 **Decision:** Run AdGuard Home in a small unprivileged LXC with encrypted upstream DNS (Quad9, DoH/DoT, DNSSEC) and local `home.arpa` names. Point devices at it individually rather than through DHCP.  
 **Why:** The ISP router cannot hand out a custom DNS server. Taking over DHCP would make the whole household depend on one machine with no failover yet, so devices opt in one at a time; whole-network DNS comes later, with a fallback plan. `home.arpa` is the name reserved for home networks (RFC 8375).
+
+## 010 - Gatus for service monitoring, config in git
+**Date:** 2026-11-12  
+**Decision:** Monitor the lab with Gatus in a small LXC (`tongs`), built from the tagged source, configured from a YAML file kept in this repo, with alerts to the same ntfy channel as Proxmox.  
+**Why:** Uptime Kuma's current release needs a newer Node.js than Debian ships and stores its settings in a database. Gatus is one Go binary, uses about 30 MB of RAM, and its whole configuration is a text file that can be reviewed and versioned ("monitoring as code"). Secrets (the ntfy topic) stay out of the repo in an environment file.

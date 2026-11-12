@@ -1,0 +1,95 @@
+# Gatus config for tongs (homelab monitoring). Secrets come from /etc/gatus/gatus.env.
+storage:
+  type: sqlite
+  path: /var/lib/gatus/data.db
+
+web:
+  port: 8080
+
+ui:
+  title: Smithy status
+  header: Homelab status
+
+alerting:
+  ntfy:
+    url: "https://ntfy.sh"
+    topic: "${NTFY_TOPIC}"
+    priority: 4
+    default-alert:
+      failure-threshold: 3
+      success-threshold: 2
+      send-on-resolved: true
+
+endpoints:
+  - name: Proxmox web UI
+    group: anvil
+    url: "https://192.168.1.10:8006"
+    interval: 1m
+    client:
+      insecure: true   # self-signed certificate (until the reverse proxy)
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 2000"
+    alerts:
+      - type: ntfy
+
+  - name: Jellyfin
+    group: services
+    url: "http://192.168.1.20:8096/health"
+    interval: 1m
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == Healthy"
+    alerts:
+      - type: ntfy
+
+  - name: flux DNS resolves
+    group: flux
+    url: "192.168.1.53"
+    interval: 1m
+    dns:
+      query-name: "example.com"
+      query-type: "A"
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+    alerts:
+      - type: ntfy
+
+  - name: flux blocks ads
+    group: flux
+    url: "192.168.1.53"
+    interval: 5m
+    dns:
+      query-name: "doubleclick.net"
+      query-type: "A"
+    conditions:
+      - "[BODY] == 0.0.0.0"
+    alerts:
+      - type: ntfy
+
+  - name: flux admin UI
+    group: flux
+    url: "http://192.168.1.53"
+    interval: 5m
+    conditions:
+      - "[STATUS] < 400"
+    alerts:
+      - type: ntfy
+
+  - name: BT Hub
+    group: network
+    url: "tcp://192.168.1.254:80"
+    interval: 1m
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: ntfy
+
+  - name: Internet (Quad9)
+    group: network
+    url: "tcp://9.9.9.9:443"
+    interval: 1m
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: ntfy
