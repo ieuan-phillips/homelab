@@ -26,6 +26,10 @@ Everything here is documented as I build it: what I did, why, what went wrong, a
    +-- CT 101 flux      AdGuard Home: DNS filtering, encrypted upstream (Quad9), local home.arpa names
    +-- CT 102 tongs     Gatus: service monitoring, alerts to phone (ntfy)
    +-- CT 103 bellows   Caddy reverse proxy: https://<service>.home.arpa with a local CA
+   +-- VM 200 hearth    OPNsense firewall: WAN on the home network, LAN on an isolated lab bridge
+          |
+       lab network 10.10.10.0/24 (vmbr1: no physical port, no host IP)
+          +-- CT 104 lab-client   test client (DHCP from hearth)
 ```
 
 Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`), and each service is a tool of the forge.
@@ -37,15 +41,17 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
 | `flux` (CT 101) | DNS filter | Unprivileged LXC, Debian 13 | ~400k blocking rules; opt-in per device |
 | `tongs` (CT 102) | Monitoring | Unprivileged LXC, Debian 13 | 7 checks, config in [`config/tongs/`](config/tongs/) |
 | `bellows` (CT 103) | Reverse proxy | Unprivileged LXC, Debian 13 | HTTPS for all web UIs, config in [`config/bellows/`](config/bellows/) |
+| `hearth` (VM 200) | Lab firewall | OPNsense 26.7 | DHCP, NAT, and rules: admin-only GUI access, lab blocked from the home network |
+| `lab-client` (CT 104) | Lab test client | Unprivileged LXC, Debian 13 | Behind hearth only |
 | `forge` | Linux admin practice box | Debian 13 (no desktop) | Disk failing; offline / lab use only |
 
 ## Roadmap
 - [x] **Phase 0 - Foundations:** Proxmox and Debian installed, static addressing, SSH key authentication, update repositories configured, disk health testing
-- [x] **Phase 0 hardening:** TOTP two-factor on the hypervisor web UI, key-only SSH, disk-failure alerting to a phone, scheduled SMART self-tests, weekly guest backups *(still to do: SHA256 verification of install media)*
+- [x] **Phase 0 hardening:** TOTP two-factor on the hypervisor web UI, key-only SSH, disk-failure alerting to a phone, scheduled SMART self-tests, weekly guest backups, install media verified before use (Proxmox and OPNsense ISOs checked against their published SHA256 checksums; OPNsense also signature-verified, with the signing key cross-checked from a second mirror)
 - [x] **Phase 1 - Media:** Jellyfin in an LXC container with Intel Quick Sync hardware transcoding, local playback
 - [ ] **Phase 2 - Storage and backups:** separate media and backup storage, scheduled Proxmox backups, 3-2-1 plan
 - [ ] **Phase 3 - Services:** ~~DNS sinkhole~~ (AdGuard Home done), ~~reverse proxy with local TLS~~ (Caddy done), Immich photo backup
-- [ ] **Phase 4 - Network security:** OPNsense firewall on an isolated lab network, segmentation, IDS (Suricata), packet capture
+- [ ] **Phase 4 - Network security:** ~~OPNsense firewall on an isolated lab network~~ (done, with first rules), segmentation, IDS (Suricata), packet capture
 - [ ] **Phase 5 - Monitoring:** ~~uptime monitoring~~ (Gatus done), metrics, Wazuh SIEM
 - [ ] **Phase 6 - Clustering:** second Proxmox node with a QDevice tie-breaker
 
@@ -66,6 +72,7 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
   - [AdGuard Home DNS filter](docs/runbooks/adguard-home-lxc.md)
   - [Gatus monitoring](docs/runbooks/gatus-monitoring.md)
   - [Caddy reverse proxy with local HTTPS](docs/runbooks/caddy-reverse-proxy.md)
+  - [OPNsense firewall lab](docs/runbooks/opnsense-lab.md)
 - Incidents
   - [2026-11-11 - forge disk failed SMART extended test](docs/incidents/2026-11-11-forge-disk-failure.md)
 
