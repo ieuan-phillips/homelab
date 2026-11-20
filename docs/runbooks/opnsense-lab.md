@@ -120,10 +120,11 @@ Rules tab: also enabled the four `ET SCAN NMAP -sS window ...` rules (SIDs 20005
 pct exec 104 -- wget -qO /dev/null --post-data='uid=0(root) gid=0(root) groups=0(root)' http://example.com/
 # 2. scan rules (needs nmap in the lab client; scan only our own hosts)
 pct exec 104 -- nmap -sS -T4 10.10.10.1
-# on the firewall: what is enabled (a leading # = disabled) and in which direction
+# on the firewall: rule direction, and ET's default state (a leading # = shipped disabled; GUI enables are not written back here)
 grep -h 'NMAP -sS' /usr/local/etc/suricata/opnsense.rules/*.rules | cut -c1-200
 ```
 Alerts tab: alert-only mode shows matches as **allowed**.
+Check the active setting: `grep -m1 'HOME_NET:' /usr/local/etc/suricata/suricata.yaml` -> `"[10.10.10.0/24]"` (only after Apply finishes).
 Result on 2026-11-20: test 1 alerted every time. Test 2 alerted **only** when lab-client was outside Home networks (Home networks `10.10.10.1/32` for the test): `2009582` NMAP -sS window 1024, `2002910` VNC scan, `2010935` MSSQL 1433, `2010936` Oracle 1521. With Home networks covering the whole lab, the same scan was silent, because ET SCAN rules match `$EXTERNAL_NET -> $HOME_NET` only.
 
 **Before updating the firmware:** `qm snapshot 200 <name>` on pve; roll back with `qm rollback 200 <name>`; delete it once the update has proven fine. Download a config backup afterwards (System -> Configuration -> Backups). It contains password hashes and the GUI key, so keep it in the password manager, not in git.
@@ -137,5 +138,5 @@ Result on 2026-11-20: test 1 alerted every time. Test 2 alerted **only** when la
 - The WAN picked up a public IPv6 address from the ISP router's announcements even with DHCP6 off. IPv6 type **None** removes it (only the `fe80::` link-local address stays).
 - New installs of OPNsense 26.x use Dnsmasq for DHCP and Unbound for DNS.
 - **Home networks decides what Suricata calls an attack.** Most ET SCAN rules are `$EXTERNAL_NET -> $HOME_NET`. Traffic between two hosts inside Home networks never matches them, even when the rules are enabled.
-- Many ET rules ship **disabled** (a leading `#` in `/usr/local/etc/suricata/opnsense.rules/*.rules`). Check before assuming a rule can fire.
+- Many ET rules ship **disabled** (a leading `#` in `/usr/local/etc/suricata/opnsense.rules/*.rules`). Enabling them in the GUI does **not** remove the `#` in those files, so the **Rules tab** is the place to see whether a rule is on.
 - Closed ports show as **filtered** to nmap, not closed: OPNsense sets `net.inet.tcp.blackhole`, so no reset is sent.
