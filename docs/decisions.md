@@ -64,3 +64,9 @@ Short records of choices and the reasoning behind them. Newest last.
 **Decision:** Run OPNsense as a VM (`hearth`, VM 200) with WAN on the home network (`vmbr0`) and LAN on a new bridge `vmbr1` that has no physical port and no host IP. Lab machines sit only on `vmbr1` (`10.10.10.0/24`). The first lab client is a small unprivileged LXC (`lab-client`, CT 104), not a full VM. The lab is IPv4 only for now.  
 **Why:** With no port and no host IP on `vmbr1`, the only way in or out of the lab is through the firewall, so rules can be tested without touching the household network (see 005). An LXC proves DHCP, NAT and rules just as well as a VM, with no OS install and a quarter of the RAM on an 8 GB host. IPv6 is left out until IPv4 rules are understood.  
 **Rules so far:** only the admin laptop may reach the firewall's web GUI from the home network (port 443), and the lab may not reach `192.168.1.0/24` but keeps internet access. Steps and test results: [OPNsense lab runbook](runbooks/opnsense-lab.md).
+
+## 013 - Suricata IDS on the lab interface, alert only
+**Date:** 2026-11-20  
+**Decision:** Run Suricata on `hearth` in IDS mode (PCAP, alert only) on the **LAN** interface, with a small set of ET Open rules updated daily, and **Home networks = `10.10.10.0/24`** (the lab only). SSH to the firewall is key-only and only from the admin laptop.  
+**Why:** Alert-only cannot break the lab while rules are being learnt. On LAN, alerts show the real lab host (on WAN everything is NATed to one address). Home networks should list what the firewall protects; the home network is outside `hearth`, so it counts as external. A test showed this setting decides whether scan rules fire at all. Only five rulesets, because the VM has 2 GB RAM. Steps and test results: [OPNsense lab runbook](runbooks/opnsense-lab.md).
+

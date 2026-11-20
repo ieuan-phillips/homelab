@@ -41,7 +41,7 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
 | `flux` (CT 101) | DNS filter | Unprivileged LXC, Debian 13 | ~400k blocking rules; opt-in per device |
 | `tongs` (CT 102) | Monitoring | Unprivileged LXC, Debian 13 | 7 checks, config in [`config/tongs/`](config/tongs/) |
 | `bellows` (CT 103) | Reverse proxy | Unprivileged LXC, Debian 13 | HTTPS for all web UIs, config in [`config/bellows/`](config/bellows/) |
-| `hearth` (VM 200) | Lab firewall | OPNsense 26.7 | DHCP, NAT, and rules: admin-only GUI access, lab blocked from the home network |
+| `hearth` (VM 200) | Lab firewall | OPNsense 26.7.9 | DHCP, NAT, and rules: admin-only GUI and SSH access, lab blocked from the home network; Suricata IDS (alert only) on the lab side |
 | `lab-client` (CT 104) | Lab test client | Unprivileged LXC, Debian 13 | Behind hearth only |
 | `forge` | Linux admin practice box | Debian 13 (no desktop) | Disk failing; offline / lab use only |
 
@@ -51,7 +51,7 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
 - [x] **Phase 1 - Media:** Jellyfin in an LXC container with Intel Quick Sync hardware transcoding, local playback
 - [ ] **Phase 2 - Storage and backups:** separate media and backup storage, scheduled Proxmox backups, 3-2-1 plan
 - [ ] **Phase 3 - Services:** ~~DNS sinkhole~~ (AdGuard Home done), ~~reverse proxy with local TLS~~ (Caddy done), Immich photo backup
-- [ ] **Phase 4 - Network security:** ~~OPNsense firewall on an isolated lab network~~ (done, with first rules), segmentation, IDS (Suricata), packet capture
+- [ ] **Phase 4 - Network security:** ~~OPNsense firewall on an isolated lab network~~ (done, with first rules), ~~IDS (Suricata)~~ (done, alert only), segmentation, packet capture
 - [ ] **Phase 5 - Monitoring:** ~~uptime monitoring~~ (Gatus done), metrics, Wazuh SIEM
 - [ ] **Phase 6 - Clustering:** second Proxmox node with a QDevice tie-breaker
 

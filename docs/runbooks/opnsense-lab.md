@@ -1,13 +1,13 @@
 # Runbook: OPNsense firewall lab (hearth)
 
-**Host:** VM 200 on Proxmox. **Last run:** 2026-11-19 (OPNsense 26.7).
+**Host:** VM 200 on Proxmox. **Last run:** 2026-11-20 (OPNsense 26.7.9_3).
 Lab network: Proxmox bridge `vmbr1`, `10.10.10.0/24`. Test client: CT 104 `lab-client`.
 
 ```
  home network 192.168.1.0/24 (vmbr0)
             |
    WAN vtnet0  192.168.1.60/24, gw 192.168.1.254, DNS 192.168.1.53
-   [ hearth - OPNsense 26.7 ]
+   [ hearth - OPNsense 26.7.9, Suricata IDS on LAN ]
    LAN vtnet1  10.10.10.1/24, DHCP .100-.200
             |
  lab network 10.10.10.0/24 (vmbr1, no physical port, no host IP)
@@ -75,6 +75,7 @@ Goal: only the admin laptop can reach the GUI from the home network, and the lab
 | Action | Proto | Source | Destination | Port | Log | Advanced |
 |---|---|---|---|---|---|---|
 | Pass | TCP (IPv4) | admin laptop `/32` | WAN address | 443 | yes | **Disable reply-to** |
+| Pass | TCP (IPv4) | admin laptop `/32` | WAN address | 22 (SSH) | yes | **Disable reply-to** (clone of the rule above) |
 
 Then Interfaces -> WAN: untick **Block private networks**, set IPv6 type **None**, Save, Apply. Save the rule first and apply both together, or the filter comes back on before the rule exists.
 
@@ -96,6 +97,37 @@ pfctl -sr | grep -n -e '192.168.1.0/24' -e 'inet from (vtnet1:network) to any'
 ```
 Result on 2026-11-19: laptop 200; phone timed out; lab client blocked to `.53`, `.10`, `.254` and flux's web page, while `9.9.9.9`, DNS, `http://deb.debian.org` and `https://10.10.10.1` still worked. Before the LAN rule, the lab client could reach all of them.
 
+## 8. SSH (key only, admin laptop only)
+1. System -> Access -> Users -> root -> **Authorized keys**: paste the laptop's `~/.ssh/id_ed25519.pub`. Save.
+2. System -> Settings -> Administration -> Secure Shell: **Enable**, **Permit root user login**, **Permit password login off**, port 22, Listen Interfaces **WAN** only. Save.
+3. WAN rule for port 22 (table in section 7).
+4. `ssh root@192.168.1.60` -> console menu -> `8` for a shell. Check the ED25519 fingerprint against the banner on the Proxmox console the first time.
+
+## 9. Suricata IDS (alert only)
+Services -> Intrusion Detection -> Administration.
+
+**Settings.** Enabled; **Capture mode `PCAP live mode (IDS)`** (26.x has no "IPS mode" tickbox: Netmap/Divert are the inline IPS modes); Promiscuous off; Interfaces **LAN**; Pattern matcher and Detect Profile Default; **Home networks `10.10.10.0/24`**. Apply.
+Why LAN: on WAN all lab traffic is already NATed to `192.168.1.60`, so alerts would not show which lab host it was.
+
+**Rulesets (Download tab).** Enable and download ET open `emerging-attack_response`, `emerging-scan`, `emerging-malware`, `emerging-exploit`, `emerging-policy`. Kept small: hearth has 2 GB RAM (about 927 MB used with these five).
+Rules tab: also enabled the four `ET SCAN NMAP -sS window ...` rules (SIDs 2000537, 2009582, 2009583, 2009584), which ET ships disabled.
+
+**Daily update.** Schedule tab (= the cron job in System -> Settings -> Cron): enable the existing job, command *Update and reload intrusion detection rules*, `30 4 * * *`.
+
+**Verify.**
+```bash
+# 1. content rule (SID 2100498 + 2019284). testmynids.org has expired, so send the string ourselves:
+pct exec 104 -- wget -qO /dev/null --post-data='uid=0(root) gid=0(root) groups=0(root)' http://example.com/
+# 2. scan rules (needs nmap in the lab client; scan only our own hosts)
+pct exec 104 -- nmap -sS -T4 10.10.10.1
+# on the firewall: what is enabled (a leading # = disabled) and in which direction
+grep -h 'NMAP -sS' /usr/local/etc/suricata/opnsense.rules/*.rules | cut -c1-200
+```
+Alerts tab: alert-only mode shows matches as **allowed**.
+Result on 2026-11-20: test 1 alerted every time. Test 2 alerted **only** when lab-client was outside Home networks (Home networks `10.10.10.1/32` for the test): `2009582` NMAP -sS window 1024, `2002910` VNC scan, `2010935` MSSQL 1433, `2010936` Oracle 1521. With Home networks covering the whole lab, the same scan was silent, because ET SCAN rules match `$EXTERNAL_NET -> $HOME_NET` only.
+
+**Before updating the firmware:** `qm snapshot 200 <name>` on pve; roll back with `qm rollback 200 <name>`; delete it once the update has proven fine. Download a config backup afterwards (System -> Configuration -> Backups). It contains password hashes and the GUI key, so keep it in the password manager, not in git.
+
 ## Gotchas
 - **Block private networks** is on for WAN by default. In this lab, WAN *is* a private network (`192.168.1.0/24`), so it must be off before any WAN rule can match.
 - **reply-to on WAN rules.** OPNsense adds `reply-to (vtnet0 <gateway>)` to WAN pass rules, so replies are sent to the gateway instead of back to the client. Fine for internet traffic, but a client on the *same* subnet as WAN (the laptop) never gets the reply: the connection times out even though the rule matches. Fix: tick **Disable reply-to** on that rule only. Seen in `pfctl -sr` as `pass in log quick on vtnet0 reply-to (vtnet0 192.168.1.254) ...`.
@@ -104,3 +136,6 @@ Result on 2026-11-19: laptop 200; phone timed out; lab client blocked to `.53`, 
 - Typing into the console through Proxmox's `sendkey` API uses US key codes, but the console keymap is UK: `|` is `shift-less`, `"` is `shift-2`.
 - The WAN picked up a public IPv6 address from the ISP router's announcements even with DHCP6 off. IPv6 type **None** removes it (only the `fe80::` link-local address stays).
 - New installs of OPNsense 26.x use Dnsmasq for DHCP and Unbound for DNS.
+- **Home networks decides what Suricata calls an attack.** Most ET SCAN rules are `$EXTERNAL_NET -> $HOME_NET`. Traffic between two hosts inside Home networks never matches them, even when the rules are enabled.
+- Many ET rules ship **disabled** (a leading `#` in `/usr/local/etc/suricata/opnsense.rules/*.rules`). Check before assuming a rule can fire.
+- Closed ports show as **filtered** to nmap, not closed: OPNsense sets `net.inet.tcp.blackhole`, so no reset is sent.
