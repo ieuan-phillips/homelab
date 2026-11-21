@@ -26,10 +26,12 @@ Everything here is documented as I build it: what I did, why, what went wrong, a
    +-- CT 101 flux      AdGuard Home: DNS filtering, encrypted upstream (Quad9), local home.arpa names
    +-- CT 102 tongs     Gatus: service monitoring, alerts to phone (ntfy)
    +-- CT 103 bellows   Caddy reverse proxy: https://<service>.home.arpa with a local CA
-   +-- VM 200 hearth    OPNsense firewall: WAN on the home network, LAN on an isolated lab bridge
+   +-- VM 200 hearth    OPNsense firewall: WAN on the home network, LAN and DMZ on isolated lab bridges
           |
        lab network 10.10.10.0/24 (vmbr1: no physical port, no host IP)
           +-- CT 104 lab-client   test client (DHCP from hearth)
+       DMZ 10.10.20.0/24 (vmbr2: no physical port, no host IP)
+          +-- CT 105 dmz-web      web server (nginx, 10.10.20.10)
 ```
 
 Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`), and each service is a tool of the forge.
@@ -41,8 +43,9 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
 | `flux` (CT 101) | DNS filter | Unprivileged LXC, Debian 13 | ~400k blocking rules; opt-in per device |
 | `tongs` (CT 102) | Monitoring | Unprivileged LXC, Debian 13 | 7 checks, config in [`config/tongs/`](config/tongs/) |
 | `bellows` (CT 103) | Reverse proxy | Unprivileged LXC, Debian 13 | HTTPS for all web UIs, config in [`config/bellows/`](config/bellows/) |
-| `hearth` (VM 200) | Lab firewall | OPNsense 26.7.9 | DHCP, NAT, and rules: admin-only GUI and SSH access, lab blocked from the home network; Suricata IDS (alert only) on the lab side |
+| `hearth` (VM 200) | Lab firewall | OPNsense 26.7.9 | DHCP, NAT, and rules: admin-only GUI and SSH access, lab blocked from the home network, DMZ segment (lab may reach its web server only); Suricata IDS (alert only) on LAN and DMZ |
 | `lab-client` (CT 104) | Lab test client | Unprivileged LXC, Debian 13 | Behind hearth only |
+| `dmz-web` (CT 105) | Lab DMZ web server | Unprivileged LXC, Debian 13, nginx | Behind hearth only, DMZ segment |
 | `forge` | Linux admin practice box | Debian 13 (no desktop) | Disk failing; offline / lab use only |
 
 ## Roadmap
@@ -51,7 +54,7 @@ Names follow a blacksmith theme: the Proxmox host is **anvil** (hostname `pve`),
 - [x] **Phase 1 - Media:** Jellyfin in an LXC container with Intel Quick Sync hardware transcoding, local playback
 - [ ] **Phase 2 - Storage and backups:** separate media and backup storage, scheduled Proxmox backups, 3-2-1 plan
 - [ ] **Phase 3 - Services:** ~~DNS sinkhole~~ (AdGuard Home done), ~~reverse proxy with local TLS~~ (Caddy done), Immich photo backup
-- [ ] **Phase 4 - Network security:** ~~OPNsense firewall on an isolated lab network~~ (done, with first rules), ~~IDS (Suricata)~~ (done, alert only), segmentation, packet capture
+- [ ] **Phase 4 - Network security:** ~~OPNsense firewall on an isolated lab network~~ (done, with first rules), ~~IDS (Suricata)~~ (done, alert only), ~~segmentation~~ (done: LAN + DMZ), packet capture
 - [ ] **Phase 5 - Monitoring:** ~~uptime monitoring~~ (Gatus done), metrics, Wazuh SIEM
 - [ ] **Phase 6 - Clustering:** second Proxmox node with a QDevice tie-breaker
 

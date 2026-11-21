@@ -1,6 +1,6 @@
 # Runbook: OPNsense firewall lab (hearth)
 
-**Host:** VM 200 on Proxmox. **Last run:** 2026-11-20 (OPNsense 26.7.9_3).
+**Host:** VM 200 on Proxmox. **Last run:** 2026-11-21 (OPNsense 26.7.9_3).
 Lab network: Proxmox bridge `vmbr1`, `10.10.10.0/24`. Test client: CT 104 `lab-client`.
 
 ```
@@ -11,8 +11,11 @@ Lab network: Proxmox bridge `vmbr1`, `10.10.10.0/24`. Test client: CT 104 `lab-c
    LAN vtnet1  10.10.10.1/24, DHCP .100-.200
             |
  lab network 10.10.10.0/24 (vmbr1, no physical port, no host IP)
-            |
-   CT 104 lab-client (DHCP)
+            |                                   DMZ vtnet2 10.10.20.1/24
+   CT 104 lab-client (DHCP)                         |
+                                  DMZ 10.10.20.0/24 (vmbr2, no port, no host IP)
+                                                    |
+                                         CT 105 dmz-web 10.10.20.10 (nginx)
 ```
 
 ## 1. Get and verify the image
@@ -129,6 +132,56 @@ Result on 2026-11-20: test 1 alerted every time. Test 2 alerted **only** when la
 
 **Before updating the firmware:** `qm snapshot 200 <name>` on pve; roll back with `qm rollback 200 <name>`; delete it once the update has proven fine. Download a config backup afterwards (System -> Configuration -> Backups). It contains password hashes and the GUI key, so keep it in the password manager, not in git.
 
+## 10. Second segment: DMZ
+Goal: a server zone. The lab may reach the web server only; a compromised DMZ server cannot reach the lab, the home network or the firewall, but can get updates.
+
+1. **Bridge** on pve (back up `/etc/network/interfaces` first), then `ifreload -a`:
+   ```
+   auto vmbr2
+   iface vmbr2 inet manual
+           bridge-ports none
+           bridge-stp off
+           bridge-fd 0
+   ```
+2. **Firewall NIC:** `qm set 200 --net2 virtio,bridge=vmbr2` (vtnet2 appeared without a reboot). Interfaces -> Assignments: add vtnet2 (match the MAC from `qm config 200`), description `DMZ`, `10.10.20.1/24`, no gateway, IPv6 none. Reload the page to see `[DMZ]` in the menu.
+3. **Server:** static address, so rules can name it.
+   ```bash
+   pct create 105 local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst --hostname dmz-web --cores 1 --memory 512 --swap 512 --rootfs local-lvm:4 --unprivileged 1 --features nesting=1 --net0 name=eth0,bridge=vmbr2,ip=10.10.20.10/24,gw=10.10.20.1 --nameserver 10.10.20.1 --onboot 0
+   ```
+   Before any DMZ rules, `ping 10.10.20.1` from it fails: a new interface has no pass rules (default deny).
+4. **DMZ rules** (IPv4, source DMZ net, in this order):
+
+| # | Action | Proto | Destination | Port | Log |
+|---|---|---|---|---|---|
+| 1 | Pass | TCP/UDP | DMZ address | 53 | |
+| 2 | Block | any | This Firewall | | yes |
+| 3 | Block | any | LAN net | | yes |
+| 4 | Block | any | `192.168.1.0/24` | | yes |
+| 5 | Pass | any | any | | |
+
+5. **LAN rules**, moved **above** *Default allow LAN to any* (pass before block):
+
+| Action | Proto | Source | Destination | Port | Log |
+|---|---|---|---|---|---|
+| Pass | TCP | LAN net | `10.10.20.10` | 80 | |
+| Block | any | LAN net | DMZ net | | yes |
+
+6. **Suricata:** Intrusion Detection -> Settings -> Interfaces **LAN, DMZ**. Home networks stays `10.10.10.0/24`, so the DMZ counts as external and scans *from* it match `$EXTERNAL_NET -> $HOME_NET` rules. Suricata sees packets on the DMZ interface before pf drops them.
+
+**Verify.**
+```bash
+# DMZ server: DNS + internet yes; firewall, lab, home no
+pct exec 105 -- sh -c 'getent hosts deb.debian.org >/dev/null && echo "DNS ok" || echo "DNS FAIL"; for h in 9.9.9.9 10.10.20.1 10.10.10.167 192.168.1.53; do ping -c1 -W2 $h >/dev/null && echo "$h ok" || echo "$h BLOCKED"; done'
+# lab -> DMZ: web only (-Pn: ping is blocked, so nmap would think the host is down)
+pct exec 104 -- nmap -Pn -sS -p 22,80,443 10.10.20.10
+pct exec 104 -- wget -qO- http://10.10.20.10 | grep -o '<title>.*</title>'
+# "compromised" DMZ server scans the lab: blocked, and Suricata alerts on the DMZ interface
+pct exec 105 -- nmap -Pn -sS -T4 10.10.10.167
+# on the firewall: loaded LAN order ("DMZ net" shows as (vtnet2:network))
+pfctl -sr | grep -n -e '10.10.20' -e 'vtnet2:network' -e 'vtnet1:network) to any'
+```
+Result on 2026-11-21: DMZ server `DNS ok`, `9.9.9.9 ok`, the other three BLOCKED. Lab to dmz-web: before the LAN rules 22 open / 80 open / 443 closed; after, 22 filtered / 80 open / 443 filtered, and the nginx page loads. DMZ scan of lab-client: all 1000 ports filtered (101 s, because nothing answers), and Suricata logged ET SCAN alerts on **DMZ** from `10.10.20.10`: 2009582 (NMAP -sS window 1024), 2002910 (VNC), 2010935 (MSSQL), 2010936 (Oracle), 2010937 (MySQL), 2010939 (PostgreSQL).
+
 ## Gotchas
 - **Block private networks** is on for WAN by default. In this lab, WAN *is* a private network (`192.168.1.0/24`), so it must be off before any WAN rule can match.
 - **reply-to on WAN rules.** OPNsense adds `reply-to (vtnet0 <gateway>)` to WAN pass rules, so replies are sent to the gateway instead of back to the client. Fine for internet traffic, but a client on the *same* subnet as WAN (the laptop) never gets the reply: the connection times out even though the rule matches. Fix: tick **Disable reply-to** on that rule only. Seen in `pfctl -sr` as `pass in log quick on vtnet0 reply-to (vtnet0 192.168.1.254) ...`.
@@ -140,3 +193,6 @@ Result on 2026-11-20: test 1 alerted every time. Test 2 alerted **only** when la
 - **Home networks decides what Suricata calls an attack.** Most ET SCAN rules are `$EXTERNAL_NET -> $HOME_NET`. Traffic between two hosts inside Home networks never matches them, even when the rules are enabled.
 - Many ET rules ship **disabled** (a leading `#` in `/usr/local/etc/suricata/opnsense.rules/*.rules`). Enabling them in the GUI does **not** remove the `#` in those files, so the **Rules tab** is the place to see whether a rule is on.
 - Closed ports show as **filtered** to nmap, not closed: OPNsense sets `net.inet.tcp.blackhole`, so no reset is sent.
+- `pct` containers set to `onboot 0` (lab-client, dmz-web) stay off after pve restarts: `pct start 104; pct start 105`.
+- A firewall that drops pings also hides hosts from nmap's discovery: "Host seems down". Use `-Pn`.
+- Interface rules in the 26.x rule dialog: the form's search box hides non-matching fields; for DNS only the *destination* port is 53, source port stays any.

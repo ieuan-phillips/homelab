@@ -70,3 +70,8 @@ Short records of choices and the reasoning behind them. Newest last.
 **Decision:** Run Suricata on `hearth` in IDS mode (PCAP, alert only) on the **LAN** interface, with a small set of ET Open rules updated daily, and **Home networks = `10.10.10.0/24`** (the lab only). SSH to the firewall is key-only and only from the admin laptop.  
 **Why:** Alert-only cannot break the lab while rules are being learnt. On LAN, alerts show the real lab host (on WAN everything is NATed to one address). Home networks should list what the firewall protects; the home network is outside `hearth`, so it counts as external. A test showed this setting decides whether scan rules fire at all. Only five rulesets, because the VM has 2 GB RAM. Steps and test results: [OPNsense lab runbook](runbooks/opnsense-lab.md).
 
+## 014 - DMZ segment for lab servers
+**Date:** 2026-11-21  
+**Decision:** Add a second lab segment, `DMZ` (`10.10.20.0/24`, bridge `vmbr2`, hearth `vtnet2`), for servers. The lab LAN may reach the DMZ web server on port 80 only; the DMZ may use the firewall for DNS and reach the internet, but not the firewall itself, the lab LAN or the home network. Suricata watches both LAN and DMZ, with Home networks kept to the lab LAN.  
+**Why:** Servers that accept connections are the likeliest to be compromised. Keeping them in their own zone with default deny means a compromised server cannot reach clients or the home network, and the IDS records the attempt (tested: a scan from the DMZ server was blocked and raised ET SCAN alerts on the DMZ interface). Servers get static addresses so rules can name them. Steps and results: [OPNsense lab runbook](runbooks/opnsense-lab.md).
+
